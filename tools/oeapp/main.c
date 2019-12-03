@@ -4,9 +4,8 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <openenclave/bits/app.h>
 #include <openenclave/bits/defs.h>
-#include <openenclave/ext/policy.h>
-#include <openenclave/ext/signature.h>
 #include <openenclave/internal/elf.h>
 #include <openenclave/internal/files.h>
 #include <openenclave/internal/raise.h>
@@ -112,14 +111,14 @@ static uint64_t _find_file_offset(elf64_t* elf, uint64_t vaddr)
 }
 
 static void _compute_signer(
-    const uint8_t modulus[OE_EXT_POLICY_MODULUS_SIZE],
+    const uint8_t modulus[OE_APP_KEY_SIZE],
     uint8_t signer[HASH_SIZE])
 {
     oe_sha256_context_t context;
     OE_SHA256 sha256;
 
     oe_sha256_init(&context);
-    oe_sha256_update(&context, modulus, OE_EXT_POLICY_MODULUS_SIZE);
+    oe_sha256_update(&context, modulus, OE_APP_KEY_SIZE);
     oe_sha256_final(&context, &sha256);
     memcpy(signer, sha256.buf, OE_SHA256_SIZE);
 }
@@ -221,10 +220,10 @@ static void _mem_reverse(void* dest_, const void* src_, size_t n)
 
 static oe_result_t _get_modulus(
     const oe_rsa_public_key_t* rsa,
-    uint8_t modulus[OE_EXT_SIGNATURE_SIZE])
+    uint8_t modulus[OE_APP_KEY_SIZE])
 {
     oe_result_t result = OE_UNEXPECTED;
-    uint8_t buf[OE_EXT_SIGNATURE_SIZE];
+    uint8_t buf[OE_APP_KEY_SIZE];
     size_t bufsize = sizeof(buf);
 
     if (!rsa || !modulus)
@@ -233,7 +232,7 @@ static oe_result_t _get_modulus(
     OE_CHECK(oe_rsa_public_key_get_modulus(rsa, buf, &bufsize));
 
     /* RSA key length is the modulus length, so these have to be equal. */
-    if (bufsize != OE_EXT_SIGNATURE_SIZE)
+    if (bufsize != OE_APP_KEY_SIZE)
         OE_RAISE(OE_FAILURE);
 
     _mem_reverse(modulus, buf, bufsize);
@@ -246,10 +245,10 @@ done:
 
 static oe_result_t _get_exponent(
     const oe_rsa_public_key_t* rsa,
-    uint8_t exponent[OE_EXT_POLICY_EXPONENT_SIZE])
+    uint8_t exponent[OE_APP_EXPONENT_SIZE])
 {
     oe_result_t result = OE_UNEXPECTED;
-    uint8_t buf[OE_EXT_POLICY_EXPONENT_SIZE];
+    uint8_t buf[OE_APP_EXPONENT_SIZE];
     size_t bufsize = sizeof(buf);
 
     if (!rsa || !exponent)
@@ -261,7 +260,7 @@ static oe_result_t _get_exponent(
     _mem_reverse(exponent, buf, bufsize);
 
     /* We zero out the rest to get the right exponent in little endian. */
-    memset(exponent + bufsize, 0, OE_EXT_POLICY_EXPONENT_SIZE - bufsize);
+    memset(exponent + bufsize, 0, OE_APP_EXPONENT_SIZE - bufsize);
 
     result = OE_OK;
 
@@ -299,7 +298,7 @@ static int _get_opt(
     return -1;
 }
 
-static void _dump_signature(const oe_ext_signature_t* signature)
+static void _dump_signature(const oe_app_signature_t* signature)
 {
     printf("signature =\n");
     printf("{\n");
@@ -309,7 +308,7 @@ static void _dump_signature(const oe_ext_signature_t* signature)
     printf("\n");
 
     printf("    hash=");
-    _hex_dump(signature->hash, sizeof(signature->hash));
+    _hex_dump(signature->hash.buf, sizeof(signature->hash));
     printf("\n");
 
     printf("    signature=");
@@ -319,7 +318,7 @@ static void _dump_signature(const oe_ext_signature_t* signature)
     printf("}\n");
 }
 
-static void _dump_policy(oe_ext_policy_t* policy)
+static void _dump_policy(oe_app_policy_t* policy)
 {
     printf("policy =\n");
     printf("{\n");
@@ -406,7 +405,7 @@ static int _extend_main(int argc, const char* argv[])
         _err("cannot find symbol: %s", opts.symbol);
 
     /* Check the size of the symbol. */
-    if (sym.st_size != sizeof(oe_ext_policy_t))
+    if (sym.st_size != sizeof(oe_app_policy_t))
         _err("symbol %s is wrong size", opts.symbol);
 
     /* Find the offset within the ELF file of this symbol. */
@@ -414,7 +413,7 @@ static int _extend_main(int argc, const char* argv[])
         _err("cannot locate symbol %s in %s", opts.symbol, opts.enclave);
 
     /* Make sure the entire symbol falls within the file image. */
-    if (file_offset + sizeof(oe_ext_policy_t) >= elf.size)
+    if (file_offset + sizeof(oe_app_policy_t) >= elf.size)
         _err("unexpected");
 
     /* Get the address of the symbol. */
@@ -424,16 +423,13 @@ static int _extend_main(int argc, const char* argv[])
     if (_load_pem_file(opts.pubkey, &pem_data, &pem_size) != 0)
         _err("failed to load keyfile: %s", opts.pubkey);
 
-    if (pem_size >= OE_EXT_POLICY_PUBKEY_SIZE)
-        _err("key is too big: %s", opts.pubkey);
-
     /* Initialize the RSA private key. */
     if (oe_rsa_public_key_read_pem(&pubkey, pem_data, pem_size) != OE_OK)
         _err("failed to initialize private key");
 
     /* Update the 'policy' symbol. */
     {
-        oe_ext_policy_t policy;
+        oe_app_policy_t policy;
         memset(&policy, 0, sizeof(policy));
 
         /* policy.modulus */
@@ -446,7 +442,7 @@ static int _extend_main(int argc, const char* argv[])
 
         /* Expecting an exponent of 03000000 */
         {
-            uint8_t buf[OE_EXT_POLICY_EXPONENT_SIZE] = {
+            uint8_t buf[OE_APP_EXPONENT_SIZE] = {
                 0x03,
                 0x00,
                 0x00,
@@ -543,7 +539,7 @@ static int _dumpext_main(int argc, const char* argv[])
         _err("cannot find symbol: %s", opts.symbol);
 
     /* Check the size of the symbol. */
-    if (sym.st_size != sizeof(oe_ext_policy_t))
+    if (sym.st_size != sizeof(oe_app_policy_t))
         _err("symbol %s is wrong size", opts.symbol);
 
     /* Find the offset within the ELF file of this symbol. */
@@ -551,7 +547,7 @@ static int _dumpext_main(int argc, const char* argv[])
         _err("cannot locate symbol %s in %s", opts.symbol, opts.enclave);
 
     /* Make sure the entire symbol falls within the file image. */
-    if (file_offset + sizeof(oe_ext_policy_t) >= elf.size)
+    if (file_offset + sizeof(oe_app_policy_t) >= elf.size)
         _err("unexpected");
 
     /* Get the address of the symbol. */
@@ -559,7 +555,7 @@ static int _dumpext_main(int argc, const char* argv[])
 
     /* Print the 'policy' symbol. */
     {
-        oe_ext_policy_t policy;
+        oe_app_policy_t policy;
 
         /* Update the policy structure in the ELF file. */
         memcpy(&policy, symbol_address, sizeof(policy));
@@ -596,7 +592,7 @@ static int _sign_main(int argc, const char* argv[])
     bool rsa_private_initialized = false;
     oe_rsa_public_key_t pubkey;
     bool pubkey_initialized = false;
-    oe_ext_signature_t sig;
+    oe_app_signature_t sig;
 
     int ret = 1;
 
@@ -645,11 +641,11 @@ static int _sign_main(int argc, const char* argv[])
 
     /* Perform the signing operation. */
     {
-        uint8_t signature[OE_EXT_SIGNATURE_SIZE];
+        uint8_t signature[OE_APP_KEY_SIZE];
 
         /* Create the signature from the hash. */
         {
-            size_t signature_size = OE_EXT_SIGNATURE_SIZE;
+            size_t signature_size = OE_APP_KEY_SIZE;
 
             if (oe_rsa_private_key_sign(
                     &rsa_private,
@@ -662,14 +658,14 @@ static int _sign_main(int argc, const char* argv[])
                 _err("signing operation failed");
             }
 
-            if (signature_size != OE_EXT_SIGNATURE_SIZE)
+            if (signature_size != OE_APP_KEY_SIZE)
                 _err("bad resulting signature size");
         }
 
         /* Initialize the sig structure. */
         {
-            uint8_t modulus[OE_EXT_POLICY_MODULUS_SIZE];
-            uint8_t exponent[OE_EXT_POLICY_EXPONENT_SIZE];
+            uint8_t modulus[OE_APP_KEY_SIZE];
+            uint8_t exponent[OE_APP_EXPONENT_SIZE];
 
             memset(&sig, 0, sizeof(sig));
 
@@ -686,7 +682,7 @@ static int _sign_main(int argc, const char* argv[])
 
             /* sign.hash */
             assert(sizeof sig.hash == sizeof opts.hash);
-            memcpy(sig.hash, opts.hash, sizeof sig.hash);
+            memcpy(sig.hash.buf, opts.hash, sizeof sig.hash);
 
             /* sign.signature */
             assert(sizeof sig.signature == sizeof signature);
@@ -755,11 +751,11 @@ static int _dumpsig_main(int argc, const char* argv[])
     }
 
     /* Check the size of the file. */
-    if (size != sizeof(oe_ext_signature_t))
+    if (size != sizeof(oe_app_signature_t))
         _err("file is wrong size: %s", opts.sigfile);
 
     /* Dump the fields in the file. */
-    _dump_signature(((oe_ext_signature_t*)data));
+    _dump_signature(((oe_app_signature_t*)data));
 
     ret = 0;
 

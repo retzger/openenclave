@@ -1,17 +1,16 @@
 // Copyright (c) Open Enclave SDK contributors.
 // Licensed under the MIT License.
 
-#include <openenclave/ext/ext.h>
+#include <openenclave/bits/app.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/rsa.h>
 #include <stdio.h>
 #include <string.h>
 
-oe_result_t oe_ext_verify_signature(
-    const oe_ext_signature_t* signature,
-    const oe_ext_policy_t* policy,
-    const uint8_t* hash,
-    size_t hash_size)
+oe_result_t oe_app_verify_signature(
+    const oe_app_signature_t* signature,
+    const oe_app_policy_t* policy,
+    const oe_app_hash_t* hash)
 {
     oe_result_t result = OE_UNEXPECTED;
     oe_rsa_public_key_t pubkey;
@@ -21,10 +20,7 @@ oe_result_t oe_ext_verify_signature(
     if (!signature || !policy || !hash)
         OE_RAISE(OE_INVALID_PARAMETER);
 
-    if (hash_size != OE_EXT_SIGNATURE_HASH_SIZE)
-        OE_RAISE(OE_INVALID_PARAMETER);
-
-    if (memcmp(signature->hash, hash, OE_EXT_SIGNATURE_HASH_SIZE) != 0)
+    if (memcmp(signature->hash.buf, hash, OE_APP_HASH_SIZE) != 0)
         OE_RAISE(OE_FAILURE);
 
     /* Check that the signers are the same. */
@@ -40,18 +36,14 @@ oe_result_t oe_ext_verify_signature(
         sizeof(policy->exponent)));
     pubkey_initialized = true;
 
-    /* Verify the hash is the right size. */
-    if (hash_size != sizeof(signature->hash))
-        OE_RAISE(OE_INVALID_PARAMETER);
-
     /* Verify that the signer signed the hash. */
     OE_CHECK(oe_rsa_public_key_verify(
         &pubkey,
         OE_HASH_TYPE_SHA256,
         hash,
-        hash_size,
+        sizeof(oe_app_hash_t),
         signature->signature,
-        sizeof signature->signature));
+        sizeof(signature->signature)));
 
     result = OE_OK;
 

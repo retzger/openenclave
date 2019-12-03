@@ -1,16 +1,16 @@
 // Copyright (c) Open Enclave SDK contributors.
 // Licensed under the MIT License.
 
+#include <openenclave/bits/app.h>
 #include <openenclave/enclave.h>
-#include <openenclave/ext/ext.h>
 #include <openenclave/internal/rsa.h>
 #include <openenclave/internal/tests.h>
 #include <stdio.h>
 #include <string.h>
-#include "oeext_t.h"
+#include "oeapp_t.h"
 
-/* The 'oeext policy' subcommand fills this in. */
-OE_EXT_POLICY_DECLARATION oe_ext_policy_t policy;
+/* The 'oeapp policy' subcommand fills this in. */
+OE_APP_SECTION oe_app_policy_t policy;
 
 void hex_dump(const uint8_t* data, size_t size)
 {
@@ -36,7 +36,7 @@ void dump_string(const uint8_t* s, size_t n)
     printf("\"");
 }
 
-void dump_policy(oe_ext_policy_t* policy)
+void dump_policy(oe_app_policy_t* policy)
 {
     printf("policy =\n");
     printf("{\n");
@@ -61,7 +61,7 @@ void dump_policy_ecall(void)
     dump_policy(&policy);
 }
 
-void dump_signature(const oe_ext_signature_t* signature)
+void dump_signature(const oe_app_signature_t* signature)
 {
     printf("signature =\n");
     printf("{\n");
@@ -71,7 +71,7 @@ void dump_signature(const oe_ext_signature_t* signature)
     printf("\n");
 
     printf("    hash=");
-    hex_dump(signature->hash, sizeof(signature->hash));
+    hex_dump(signature->hash.buf, sizeof(signature->hash));
     printf("\n");
 
     printf("    signature=");
@@ -82,19 +82,17 @@ void dump_signature(const oe_ext_signature_t* signature)
 }
 
 void verify_ecall(
-    struct _oe_ext_signature* signature,
-    uint8_t* hash,
-    size_t hash_size)
+    const struct _oe_app_signature* signature,
+    const struct _oe_app_hash* hash)
 {
     oe_result_t r;
 
-    printf("HHHH=%zu\n", hash_size);
-    hex_dump(hash, hash_size);
+    hex_dump(hash->buf, sizeof(oe_app_hash_t));
 
     /* Dump the structure. */
     dump_signature(signature);
 
-    r = oe_ext_verify_signature(signature, &policy, hash, hash_size);
+    r = oe_app_verify_signature(signature, &policy, hash);
     OE_TEST(r == OE_OK);
 
     printf("=== VERIFY OKAY\n");

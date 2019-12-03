@@ -3,15 +3,14 @@
 
 enclave
 {
-    include "openenclave/ext/signature.h"
+    include "openenclave/bits/app.h"
 
     trusted
     {
         public void dump_policy_ecall();
 
         public void verify_ecall(
-            [in, count=1] struct _oe_ext_signature* sig,
-            [in, count=hash_size] uint8_t* hash,
-            size_t hash_size);
+            [in, count=1] const struct _oe_app_signature* sig,
+            [in, count=1] const struct _oe_app_hash* hash);
     };
 };
