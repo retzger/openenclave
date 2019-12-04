@@ -20,19 +20,22 @@ add_test(tests/oeapp_privkey
 add_test(tests/oeapp_pubkey
     openssl rsa -in ${PRIVKEY} -out ${PUBKEY} -pubout -outform PEM)
 
-add_test(tests/oeapp_extend
-    oeapp extend
+set(APPID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
+set(APPHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
+set(SIGFILE ${CMAKE_CURRENT_BINARY_DIR}/sign)
+
+add_test(tests/oeapp_update
+    oeapp update
     pubkey=${PUBKEY}
+    appid=${APPID}
     enclave=${CMAKE_CURRENT_BINARY_DIR}/enc/oeapp_enc
     symbol=policy)
-
-set(HASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
-set(SIGFILE ${CMAKE_CURRENT_BINARY_DIR}/sign)
 
 add_test(tests/oeapp_sign
     oeapp sign
     privkey=${PRIVKEY}
-    hash=${HASH}
+    appid=${APPID}
+    apphash=${APPHASH}
     sigfile=${SIGFILE})
 
-add_enclave_test(tests/oeapp oeapp_host oeapp_enc ${SIGFILE} ${HASH})
+add_enclave_test(tests/oeapp oeapp_host oeapp_enc ${SIGFILE} ${APPHASH})

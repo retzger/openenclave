@@ -42,15 +42,19 @@ void dump_policy(oe_app_policy_t* policy)
     printf("{\n");
 
     printf("    modulus=");
-    hex_dump(policy->modulus, sizeof(policy->modulus));
+    hex_dump(policy->pubkey.modulus, sizeof(policy->pubkey.modulus));
     printf("\n");
 
     printf("    exponent=");
-    hex_dump(policy->exponent, sizeof(policy->exponent));
+    hex_dump(policy->pubkey.exponent, sizeof(policy->pubkey.exponent));
     printf("\n");
 
     printf("    signer=");
-    hex_dump(policy->signer, sizeof(policy->signer));
+    hex_dump(policy->signer.buf, sizeof(policy->signer));
+    printf("\n");
+
+    printf("    appid=");
+    hex_dump(policy->appid.buf, sizeof(policy->appid));
     printf("\n");
 
     printf("}\n");
@@ -67,11 +71,11 @@ void dump_signature(const oe_app_signature_t* signature)
     printf("{\n");
 
     printf("    signer=");
-    hex_dump(signature->signer, sizeof(signature->signer));
+    hex_dump(signature->signer.buf, sizeof(signature->signer));
     printf("\n");
 
     printf("    hash=");
-    hex_dump(signature->hash.buf, sizeof(signature->hash));
+    hex_dump(signature->apphash.buf, sizeof(signature->apphash));
     printf("\n");
 
     printf("    signature=");
@@ -83,16 +87,16 @@ void dump_signature(const oe_app_signature_t* signature)
 
 void verify_ecall(
     const struct _oe_app_signature* signature,
-    const struct _oe_app_hash* hash)
+    const struct _oe_app_hash* apphash)
 {
     oe_result_t r;
 
-    hex_dump(hash->buf, sizeof(oe_app_hash_t));
+    hex_dump(apphash->buf, sizeof(oe_app_hash_t));
 
     /* Dump the structure. */
     dump_signature(signature);
 
-    r = oe_app_verify_signature(signature, &policy, hash);
+    r = oe_app_verify_signature(signature, &policy, &policy.appid, apphash);
     OE_TEST(r == OE_OK);
 
     printf("=== VERIFY OKAY\n");

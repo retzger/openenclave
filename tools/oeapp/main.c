@@ -16,8 +16,6 @@
 #include <sys/stat.h>
 #include "../../host/crypto/rsa.h"
 
-#define HASH_SIZE OE_SHA256_SIZE
-
 static const char* arg0;
 
 OE_PRINTF_FORMAT(1, 2)
@@ -59,23 +57,23 @@ done:
     return ret;
 }
 
-int _ascii_to_hash(const char* ascii_hash, uint8_t hash[HASH_SIZE])
+int _ascii_to_hash(const char* ascii_hash, oe_app_hash_t* hash)
 {
     const char* p = ascii_hash;
 
-    memset(hash, 0, HASH_SIZE);
+    memset(hash, 0, OE_APP_HASH_SIZE);
 
-    if (strlen(ascii_hash) != 2 * HASH_SIZE)
+    if (strlen(ascii_hash) != 2 * OE_APP_HASH_SIZE)
         return -1;
 
-    for (size_t i = 0; i < HASH_SIZE; i++)
+    for (size_t i = 0; i < OE_APP_HASH_SIZE; i++)
     {
         unsigned int byte;
 
         if (sscanf(p, "%02x", &byte) != 1)
             return -1;
 
-        hash[i] = (uint8_t)byte;
+        hash->buf[i] = (uint8_t)byte;
         p += 2;
     }
 
@@ -112,7 +110,7 @@ static uint64_t _find_file_offset(elf64_t* elf, uint64_t vaddr)
 
 static void _compute_signer(
     const uint8_t modulus[OE_APP_KEY_SIZE],
-    uint8_t signer[HASH_SIZE])
+    oe_app_hash_t* signer)
 {
     oe_sha256_context_t context;
     OE_SHA256 sha256;
@@ -304,11 +302,11 @@ static void _dump_signature(const oe_app_signature_t* signature)
     printf("{\n");
 
     printf("    signer=");
-    _hex_dump(signature->signer, sizeof(signature->signer));
+    _hex_dump(signature->signer.buf, sizeof(signature->signer));
     printf("\n");
 
     printf("    hash=");
-    _hex_dump(signature->hash.buf, sizeof(signature->hash));
+    _hex_dump(signature->apphash.buf, sizeof(signature->apphash));
     printf("\n");
 
     printf("    signature=");
@@ -324,31 +322,34 @@ static void _dump_policy(oe_app_policy_t* policy)
     printf("{\n");
 
     printf("    modulus=");
-    _hex_dump(policy->modulus, sizeof(policy->modulus));
+    _hex_dump(policy->pubkey.modulus, sizeof(policy->pubkey.modulus));
     printf("\n");
 
     printf("    exponent=");
-    _hex_dump(policy->exponent, sizeof(policy->exponent));
+    _hex_dump(policy->pubkey.exponent, sizeof(policy->pubkey.exponent));
     printf("\n");
 
     printf("    signer=");
-    _hex_dump(policy->signer, sizeof(policy->signer));
+    _hex_dump(policy->signer.buf, sizeof(policy->signer.buf));
+    printf("\n");
+
+    printf("    appid=");
+    _hex_dump(policy->appid.buf, sizeof(policy->appid));
     printf("\n");
 
     printf("}\n");
 }
 
-static int _extend_main(int argc, const char* argv[])
+static int _update_main(int argc, const char* argv[])
 {
     static const char _usage[] =
         "\n"
-        "Usage: %s extend pubkey=? enclave=? symbol=?\n"
-        "\n"
+        "Usage: %s update pubkey=? appid=? enclave=? symbol=?\n"
         "\n";
     typedef struct
     {
         const char* pubkey;
-        uint16_t isvsvn;
+        oe_app_hash_t appid;
         const char* enclave;
         const char* symbol;
     } opts_t;
@@ -366,7 +367,7 @@ static int _extend_main(int argc, const char* argv[])
     int ret = 1;
 
     /* Check and collect arguments. */
-    if (argc != 5)
+    if (argc != 6)
     {
         fprintf(stderr, _usage, arg0);
         goto done;
@@ -377,6 +378,17 @@ static int _extend_main(int argc, const char* argv[])
         /* Handle pubkey option. */
         if (_get_opt(&argc, argv, "pubkey", &opts.pubkey) != 0)
             _err("missing pubkey option");
+
+        /* Get the appid option. */
+        {
+            const char* ascii;
+
+            if (_get_opt(&argc, argv, "appid", &ascii) != 0)
+                _err("missing appid option");
+
+            if (_ascii_to_hash(ascii, &opts.appid) != 0)
+                _err("bad appid option: %s", ascii);
+        }
 
         /* Handle enclave option. */
         if (_get_opt(&argc, argv, "enclave", &opts.enclave) != 0)
@@ -433,12 +445,15 @@ static int _extend_main(int argc, const char* argv[])
         memset(&policy, 0, sizeof(policy));
 
         /* policy.modulus */
-        if (_get_modulus(&pubkey, policy.modulus) != 0)
+        if (_get_modulus(&pubkey, policy.pubkey.modulus) != 0)
             _err("failed to get modulus");
 
         /* policy.exponent */
-        if (_get_exponent(&pubkey, policy.exponent) != 0)
+        if (_get_exponent(&pubkey, policy.pubkey.exponent) != 0)
             _err("failed to get exponent");
+
+        /* policy.appid */
+        policy.appid = opts.appid;
 
         /* Expecting an exponent of 03000000 */
         {
@@ -449,14 +464,14 @@ static int _extend_main(int argc, const char* argv[])
                 0x00,
             };
 
-            if (memcmp(policy.exponent, buf, sizeof(buf)) != 0)
+            if (memcmp(policy.pubkey.exponent, buf, sizeof(buf)) != 0)
                 _err("bad value for pubkey exponent (must be 3)");
         }
 
         /* Compute the hash of the public key. */
-        _compute_signer(policy.modulus, policy.signer);
+        _compute_signer(policy.pubkey.modulus, &policy.signer);
 
-        /* Update the extend structure in the ELF file. */
+        /* Update the update structure in the ELF file. */
         memcpy(symbol_address, &policy, sizeof(policy));
     }
 
@@ -483,11 +498,10 @@ done:
     return ret;
 }
 
-static int _dumpext_main(int argc, const char* argv[])
+static int _dump_policy_main(int argc, const char* argv[])
 {
     static const char _usage[] = "\n"
-                                 "Usage: %s dumpext enclave=? symbol=?\n"
-                                 "\n"
+                                 "Usage: %s dump_policy enclave=? symbol=?\n"
                                  "\n";
     typedef struct
     {
@@ -575,14 +589,15 @@ done:
 
 static int _sign_main(int argc, const char* argv[])
 {
-    static const char _usage[] = "\n"
-                                 "Usage: %s sign privkey=? hash=? sigfile=?\n"
-                                 "\n"
-                                 "\n";
+    static const char _usage[] =
+        "\n"
+        "Usage: %s sign privkey=? appid=? apphash=? sigfile=?\n"
+        "\n";
     typedef struct
     {
         const char* privkey;
-        uint8_t hash[OE_SHA256_SIZE];
+        oe_app_hash_t appid;
+        oe_app_hash_t apphash;
         const char* sigfile;
     } opts_t;
     opts_t opts;
@@ -597,7 +612,7 @@ static int _sign_main(int argc, const char* argv[])
     int ret = 1;
 
     /* Check usage. */
-    if (argc != 5)
+    if (argc != 6)
     {
         fprintf(stderr, _usage, arg0);
         goto done;
@@ -609,15 +624,26 @@ static int _sign_main(int argc, const char* argv[])
         if (_get_opt(&argc, argv, "privkey", &opts.privkey) != 0)
             _err("missing privkey option");
 
-        /* Get the hash option. */
+        /* Get the appid option. */
         {
             const char* ascii;
 
-            if (_get_opt(&argc, argv, "hash", &ascii) != 0)
-                _err("missing hash option");
+            if (_get_opt(&argc, argv, "appid", &ascii) != 0)
+                _err("missing appid option");
 
-            if (_ascii_to_hash(ascii, opts.hash) != 0)
-                _err("bad hash option: %s", ascii);
+            if (_ascii_to_hash(ascii, &opts.appid) != 0)
+                _err("bad appid option: %s", ascii);
+        }
+
+        /* Get the apphash option. */
+        {
+            const char* ascii;
+
+            if (_get_opt(&argc, argv, "apphash", &ascii) != 0)
+                _err("missing apphash option");
+
+            if (_ascii_to_hash(ascii, &opts.apphash) != 0)
+                _err("bad apphash option: %s", ascii);
         }
 
         /* Get the sigfile option. */
@@ -642,6 +668,24 @@ static int _sign_main(int argc, const char* argv[])
     /* Perform the signing operation. */
     {
         uint8_t signature[OE_APP_KEY_SIZE];
+        oe_app_hash_t hash;
+
+        /* Combine the two hashes (appid and apphash) into one */
+        {
+            oe_sha256_context_t context;
+            OE_SHA256 sha256;
+
+            oe_sha256_init(&context);
+            oe_sha256_update(&context, opts.appid.buf, sizeof(opts.appid));
+            oe_sha256_update(&context, opts.apphash.buf, sizeof(opts.apphash));
+            oe_sha256_final(&context, &sha256);
+
+            memcpy(hash.buf, sha256.buf, sizeof(hash));
+        }
+
+        printf("HHH\n");
+        _hex_dump(hash.buf, sizeof(hash.buf));
+        printf("\n");
 
         /* Create the signature from the hash. */
         {
@@ -650,8 +694,8 @@ static int _sign_main(int argc, const char* argv[])
             if (oe_rsa_private_key_sign(
                     &rsa_private,
                     OE_HASH_TYPE_SHA256,
-                    opts.hash,
-                    sizeof(opts.hash),
+                    hash.buf,
+                    sizeof(oe_app_hash_t),
                     signature,
                     &signature_size) != 0)
             {
@@ -678,11 +722,11 @@ static int _sign_main(int argc, const char* argv[])
                 _err("failed to get exponent");
 
             /* sign.signer */
-            _compute_signer(modulus, sig.signer);
+            _compute_signer(modulus, &sig.signer);
 
             /* sign.hash */
-            assert(sizeof sig.hash == sizeof opts.hash);
-            memcpy(sig.hash.buf, opts.hash, sizeof sig.hash);
+            assert(sizeof sig.apphash == sizeof opts.apphash);
+            sig.apphash = opts.apphash;
 
             /* sign.signature */
             assert(sizeof sig.signature == sizeof signature);
@@ -713,11 +757,10 @@ done:
     return ret;
 }
 
-static int _dumpsig_main(int argc, const char* argv[])
+static int _dump_signature_main(int argc, const char* argv[])
 {
     static const char _usage[] = "\n"
-                                 "Usage: %s dumpsig sigfile=?\n"
-                                 "\n"
+                                 "Usage: %s dump_signature sigfile=?\n"
                                  "\n";
     typedef struct
     {
@@ -774,10 +817,10 @@ int main(int argc, const char* argv[])
         "Usage: %s command options...\n"
         "\n"
         "Commands:\n"
-        "    extend - build and insert an extend structure into an enclave.\n"
-        "    sign - build and create a signature file for a given hash.\n"
-        "    dumpext - dump an enclave extend sructure.\n"
-        "    dumpsig - dump a signature file.\n"
+        "    update - update an enclave's policy structure.\n"
+        "    sign - create a signature file for a given hash.\n"
+        "    dump_policy - dump an enclave update sructure.\n"
+        "    dump_signature - dump a signature file.\n"
         "\n";
     int ret = 1;
 
@@ -792,9 +835,9 @@ int main(int argc, const char* argv[])
     /* Disable logging noise to standard output. */
     setenv("OE_LOG_LEVEL", "NONE", 1);
 
-    if (strcmp(argv[1], "extend") == 0)
+    if (strcmp(argv[1], "update") == 0)
     {
-        ret = _extend_main(argc, argv);
+        ret = _update_main(argc, argv);
         goto done;
     }
     else if (strcmp(argv[1], "sign") == 0)
@@ -802,14 +845,14 @@ int main(int argc, const char* argv[])
         ret = _sign_main(argc, argv);
         goto done;
     }
-    if (strcmp(argv[1], "dumpext") == 0)
+    if (strcmp(argv[1], "dump_policy") == 0)
     {
-        ret = _dumpext_main(argc, argv);
+        ret = _dump_policy_main(argc, argv);
         goto done;
     }
-    else if (strcmp(argv[1], "dumpsig") == 0)
+    else if (strcmp(argv[1], "dump_signature") == 0)
     {
-        ret = _dumpsig_main(argc, argv);
+        ret = _dump_signature_main(argc, argv);
         goto done;
     }
     else
