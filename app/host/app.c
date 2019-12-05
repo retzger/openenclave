@@ -229,10 +229,10 @@ oe_result_t oe_app_save_sigstruct(
 
     fprintf(os, "# sigstruct\n");
 
-    _put(os, "signer", p->signer.buf, sizeof(p->signer));
-    _put(os, "appid", p->appid.buf, sizeof(p->appid));
-    _put(os, "apphash", p->apphash.buf, sizeof(p->apphash));
-    _put(os, "signature", p->signature.buf, sizeof(p->signature));
+    OE_CHECK(_put(os, "signer", p->signer.buf, sizeof(p->signer)));
+    OE_CHECK(_put(os, "appid", p->appid.buf, sizeof(p->appid)));
+    OE_CHECK(_put(os, "apphash", p->apphash.buf, sizeof(p->apphash)));
+    OE_CHECK(_put(os, "signature", p->signature.buf, sizeof(p->signature)));
 
     result = OE_OK;
 

@@ -12,8 +12,10 @@ static void _dump_hex(const uint8_t* data, size_t size)
 
 void oe_app_dump_hash(const char* name, const oe_app_hash_t* hash)
 {
+    printf("# hash\n");
     printf("%s=", name);
     _dump_hex(hash->buf, sizeof(oe_app_hash_t));
+    printf("\n");
     printf("\n");
 }
 
@@ -36,6 +38,8 @@ void oe_app_dump_policy(const oe_app_policy_t* policy)
     printf("appid=");
     _dump_hex(policy->appid.buf, sizeof(policy->appid));
     printf("\n");
+
+    printf("\n");
 }
 
 void oe_app_dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
@@ -56,5 +60,7 @@ void oe_app_dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
 
     printf("signature=");
     _dump_hex(sigstruct->signature.buf, sizeof(sigstruct->signature));
+    printf("\n");
+
     printf("\n");
 }
