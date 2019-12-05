@@ -198,11 +198,12 @@ static int _get_opt(
     return -1;
 }
 
-static int _update_main(int argc, const char* argv[])
+static int _extend_main(int argc, const char* argv[])
 {
+    int ret = 1;
     static const char _usage[] =
         "\n"
-        "Usage: %s update pubkey=? extid=? enclave=? symbol=?\n"
+        "Usage: %s extend pubkey=? extid=? enclave=? symbol=? [payload=?]\n"
         "\n";
     typedef struct
     {
@@ -210,6 +211,7 @@ static int _update_main(int argc, const char* argv[])
         oe_ext_hash_t extid;
         const char* enclave;
         const char* symbol;
+        const char* payload;
     } opts_t;
     opts_t opts;
     elf64_t elf;
@@ -219,13 +221,15 @@ static int _update_main(int argc, const char* argv[])
     size_t file_offset;
     void* pem_data = NULL;
     size_t pem_size = 0;
+    void* payload_data = NULL;
+    size_t payload_size = 0;
     oe_rsa_public_key_t pubkey;
     bool pubkey_initialized = false;
 
-    int ret = 1;
+    memset(&opts, 0, sizeof(opts));
 
     /* Check and collect arguments. */
-    if (argc != 6)
+    if (argc == 2)
     {
         fprintf(stderr, _usage, arg0);
         goto done;
@@ -242,15 +246,15 @@ static int _update_main(int argc, const char* argv[])
             const char* ascii;
 
             if (_get_opt(&argc, argv, "extid", &ascii) != 0)
-                _err("missing extid option");
+                _err("missing 'extid' option");
 
             if (oe_ext_ascii_to_hash(ascii, &opts.extid) != OE_OK)
-                _err("bad extid option: %s", ascii);
+                _err("bad 'extid' option: %s", ascii);
         }
 
         /* Handle enclave option. */
         if (_get_opt(&argc, argv, "enclave", &opts.enclave) != 0)
-            _err("missing enclave option");
+            _err("missing 'enclave' option");
 
         /* Get symbol option. */
         {
@@ -260,6 +264,22 @@ static int _update_main(int argc, const char* argv[])
             if (!_valid_symbol_name(opts.symbol))
                 _err("bad value for symbol option: %s", opts.symbol);
         }
+
+        /* Get optional payload option. */
+        _get_opt(&argc, argv, "payload", &opts.payload);
+
+        if (payload_size >= OE_EXT_PAYLOAD_SIZE)
+        {
+            _err(
+                "payload is too large (cannot be bigger than %u)",
+                OE_EXT_PAYLOAD_SIZE);
+        }
+    }
+
+    /* Fail if there are unconsumed option. */
+    if (argc > 2)
+    {
+        _err("unknown option: %s", argv[2]);
     }
 
     /* Load the ELF-64 object */
@@ -295,6 +315,13 @@ static int _update_main(int argc, const char* argv[])
             _err("failed to load keyfile: %s", opts.pubkey);
 
         pem_size++;
+    }
+
+    /* Load the profile if any. */
+    if (opts.payload)
+    {
+        if (__oe_load_file(opts.payload, 1, &payload_data, &payload_size) != 0)
+            _err("failed to load payload file: %s", opts.payload);
     }
 
     /* Initialize the RSA private key. */
@@ -336,7 +363,14 @@ static int _update_main(int argc, const char* argv[])
             policy.pubkey.modulus,
             sizeof(policy.pubkey.modulus));
 
-        /* Update the update structure in the ELF file. */
+        /* Inject the payload if any. */
+        if (payload_data && payload_size)
+        {
+            memcpy(policy.payload, payload_data, payload_size);
+            policy.payload_size = payload_size;
+        }
+
+        /* Update the policy structure in the ELF file. */
         memcpy(symbol_address, &policy, sizeof(policy));
     }
 
@@ -353,6 +387,9 @@ done:
 
     if (pem_data)
         free(pem_data);
+
+    if (payload_data)
+        free(payload_data);
 
     if (loaded)
         elf64_unload(&elf);
@@ -634,8 +671,8 @@ int main(int argc, const char* argv[])
         "Usage: %s command options...\n"
         "\n"
         "Commands:\n"
-        "    update - update an enclave's policy structure.\n"
-        "    sign - create a sigstruct file for a given hash.\n"
+        "    extend - inject a policy into an enclave.\n"
+        "    sign - create a sigstruct file for a given signer and hash.\n"
         "    dump_policy - dump an enclave update sructure.\n"
         "\n";
     int ret = 1;
@@ -651,9 +688,9 @@ int main(int argc, const char* argv[])
     /* Disable logging noise to standard output. */
     setenv("OE_LOG_LEVEL", "NONE", 1);
 
-    if (strcmp(argv[1], "update") == 0)
+    if (strcmp(argv[1], "extend") == 0)
     {
-        ret = _update_main(argc, argv);
+        ret = _extend_main(argc, argv);
         goto done;
     }
     else if (strcmp(argv[1], "sign") == 0)

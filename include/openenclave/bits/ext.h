@@ -18,6 +18,8 @@
 
 #define OE_EXT_EXPONENT_SIZE 4
 
+#define OE_EXT_PAYLOAD_SIZE 4096
+
 typedef struct _oe_ext_hash
 {
     /* 256-bit hash */
@@ -46,6 +48,11 @@ typedef struct _oe_ext_policy
     /* The hash of the user-defined extension structure (EXTSTRUCT) */
     oe_ext_hash_t extid;
 
+    /* User-defined payload. */
+    uint8_t payload[OE_EXT_PAYLOAD_SIZE];
+
+    /* Size of the payload */
+    size_t payload_size;
 } oe_ext_policy_t;
 
 typedef struct _oe_ext_signature

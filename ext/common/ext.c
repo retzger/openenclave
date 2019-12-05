@@ -10,6 +10,42 @@ static void _dump_hex(const uint8_t* data, size_t size)
         printf("%02x", data[i]);
 }
 
+static void _dump_string(const uint8_t* data, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        uint8_t c = data[i];
+
+        switch (c)
+        {
+            case '\r':
+                printf("\\r");
+                break;
+            case '\n':
+                printf("\\n");
+                break;
+            case '\t':
+                printf("\\t");
+                break;
+            case '\f':
+                printf("\\f");
+                break;
+            default:
+            {
+                if (c >= ' ' && c <= '~')
+                {
+                    printf("%c", c);
+                }
+                else
+                {
+                    printf("\\%03o", c);
+                }
+                break;
+            }
+        }
+    }
+}
+
 void oe_ext_dump_hash(const char* name, const oe_ext_hash_t* hash)
 {
     printf("# hash\n");
@@ -38,6 +74,12 @@ void oe_ext_dump_policy(const oe_ext_policy_t* policy)
     printf("extid=");
     _dump_hex(policy->extid.buf, sizeof(policy->extid));
     printf("\n");
+
+    printf("payload=");
+    _dump_string(policy->payload, policy->payload_size);
+    printf("\n");
+
+    printf("payload_size=%zu\n", policy->payload_size);
 
     printf("\n");
 }
