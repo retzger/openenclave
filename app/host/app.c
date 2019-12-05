@@ -209,6 +209,8 @@ static oe_result_t _put(
     if (fprintf(os, "\n") != 1)
         OE_RAISE(OE_FAILURE);
 
+    result = OE_OK;
+
 done:
     return result;
 }

@@ -627,63 +627,6 @@ done:
     return ret;
 }
 
-static int _dump_sigstruct_main(int argc, const char* argv[])
-{
-    static const char _usage[] = "\n"
-                                 "Usage: %s dump_sigstruct sigstructfile=?\n"
-                                 "\n";
-    typedef struct
-    {
-        const char* sigstructfile;
-    } opts_t;
-    opts_t opts;
-    void* data = NULL;
-    size_t size;
-
-    int ret = 1;
-
-    /* Check usage. */
-    if (argc != 3)
-    {
-        fprintf(stderr, _usage, arg0);
-        goto done;
-    }
-
-    /* Collect the options. */
-    {
-        /* Get the sigstructfile option. */
-        if (_get_opt(&argc, argv, "sigstructfile", &opts.sigstructfile) != 0)
-            _err("missing sigstructfile option");
-    }
-
-    /* Load the signature file into memory. */
-    {
-        if (__oe_load_file(opts.sigstructfile, 1, &data, &size) != 0)
-        {
-            _err("failed to write: %s", opts.sigstructfile);
-            goto done;
-        }
-
-        size++;
-    }
-
-    /* Check the size of the file. */
-    if (size != sizeof(oe_app_sigstruct_t))
-        _err("file is wrong size: %s", opts.sigstructfile);
-
-    /* Dump the fields in the file. */
-    oe_app_dump_sigstruct(((oe_app_sigstruct_t*)data));
-
-    ret = 0;
-
-done:
-
-    if (data)
-        free(data);
-
-    return ret;
-}
-
 int main(int argc, const char* argv[])
 {
     static const char _usage[] =
@@ -694,7 +637,6 @@ int main(int argc, const char* argv[])
         "    update - update an enclave's policy structure.\n"
         "    sign - create a sigstruct file for a given hash.\n"
         "    dump_policy - dump an enclave update sructure.\n"
-        "    dump_sigstruct - dump a sigstruct file.\n"
         "\n";
     int ret = 1;
 
@@ -722,11 +664,6 @@ int main(int argc, const char* argv[])
     if (strcmp(argv[1], "dump_policy") == 0)
     {
         ret = _dump_policy_main(argc, argv);
-        goto done;
-    }
-    else if (strcmp(argv[1], "dump_sigstruct") == 0)
-    {
-        ret = _dump_sigstruct_main(argc, argv);
         goto done;
     }
     else

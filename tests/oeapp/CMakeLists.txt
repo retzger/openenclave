@@ -2,15 +2,13 @@
 # Licensed under the MIT License.
 
 add_subdirectory(host)
-
-if (BUILD_ENCLAVES)
-	add_subdirectory(enc)
-endif()
+add_subdirectory(enc)
 
 set(PUBKEY "${CMAKE_CURRENT_BINARY_DIR}/public.pem")
 set(PRIVKEY "${CMAKE_CURRENT_BINARY_DIR}/private.pem")
-set(PRODID 100)
-set(SVN 200)
+set(APPID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
+set(APPHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
+set(SIGSTRUCT ${CMAKE_CURRENT_BINARY_DIR}/sigstruct)
 
 # Generate a self-signed private key:
 add_test(tests/oeapp_privkey
@@ -19,10 +17,6 @@ add_test(tests/oeapp_privkey
 # Generate a public key from the private key:
 add_test(tests/oeapp_pubkey
     openssl rsa -in ${PRIVKEY} -out ${PUBKEY} -pubout -outform PEM)
-
-set(APPID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
-set(APPHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
-set(SIGSTRUCT ${CMAKE_CURRENT_BINARY_DIR}/sigstruct)
 
 # Update the policy within the enclave:
 add_test(tests/oeapp_update

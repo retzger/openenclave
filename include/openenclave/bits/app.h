@@ -77,8 +77,6 @@ oe_result_t oe_app_verify_signature(
 
 oe_result_t oe_app_ascii_to_hash(const char* ascii, oe_app_hash_t* hash);
 
-void oe_app_dump_hex(const uint8_t* data, size_t size);
-
 void oe_app_dump_hash(const char* name, const oe_app_hash_t* hash);
 
 void oe_app_dump_policy(const oe_app_policy_t* policy);
