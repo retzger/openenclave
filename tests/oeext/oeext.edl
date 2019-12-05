@@ -3,14 +3,14 @@
 
 enclave
 {
-    include "openenclave/bits/app.h"
+    include "openenclave/bits/ext.h"
 
     trusted
     {
         public void dump_policy_ecall();
 
         public void verify_ecall(
-            [in, count=1] const struct _oe_app_sigstruct* sigstruct,
-            [in, count=1] const struct _oe_app_hash* apphash);
+            [in, count=1] const struct _oe_ext_sigstruct* sigstruct,
+            [in, count=1] const struct _oe_ext_hash* exthash);
     };
 };

@@ -4,8 +4,8 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
-#include <openenclave/bits/app.h>
 #include <openenclave/bits/defs.h>
+#include <openenclave/bits/ext.h>
 #include <openenclave/internal/elf.h>
 #include <openenclave/internal/files.h>
 #include <openenclave/internal/raise.h>
@@ -86,7 +86,7 @@ static uint64_t _find_file_offset(elf64_t* elf, uint64_t vaddr)
 }
 
 static void _compute_sha256_hash(
-    oe_app_hash_t* hash,
+    oe_ext_hash_t* hash,
     const void* data,
     size_t size)
 {
@@ -126,10 +126,10 @@ static void _mem_reverse(void* dest_, const void* src_, size_t n)
 
 static oe_result_t _get_modulus(
     const oe_rsa_public_key_t* rsa,
-    uint8_t modulus[OE_APP_KEY_SIZE])
+    uint8_t modulus[OE_EXT_KEY_SIZE])
 {
     oe_result_t result = OE_UNEXPECTED;
-    uint8_t buf[OE_APP_KEY_SIZE];
+    uint8_t buf[OE_EXT_KEY_SIZE];
     size_t bufsize = sizeof(buf);
 
     if (!rsa || !modulus)
@@ -138,7 +138,7 @@ static oe_result_t _get_modulus(
     OE_CHECK(oe_rsa_public_key_get_modulus(rsa, buf, &bufsize));
 
     /* RSA key length is the modulus length, so these have to be equal. */
-    if (bufsize != OE_APP_KEY_SIZE)
+    if (bufsize != OE_EXT_KEY_SIZE)
         OE_RAISE(OE_FAILURE);
 
     _mem_reverse(modulus, buf, bufsize);
@@ -151,10 +151,10 @@ done:
 
 static oe_result_t _get_exponent(
     const oe_rsa_public_key_t* rsa,
-    uint8_t exponent[OE_APP_EXPONENT_SIZE])
+    uint8_t exponent[OE_EXT_EXPONENT_SIZE])
 {
     oe_result_t result = OE_UNEXPECTED;
-    uint8_t buf[OE_APP_EXPONENT_SIZE];
+    uint8_t buf[OE_EXT_EXPONENT_SIZE];
     size_t bufsize = sizeof(buf);
 
     if (!rsa || !exponent)
@@ -166,7 +166,7 @@ static oe_result_t _get_exponent(
     _mem_reverse(exponent, buf, bufsize);
 
     /* We zero out the rest to get the right exponent in little endian. */
-    memset(exponent + bufsize, 0, OE_APP_EXPONENT_SIZE - bufsize);
+    memset(exponent + bufsize, 0, OE_EXT_EXPONENT_SIZE - bufsize);
 
     result = OE_OK;
 
@@ -202,12 +202,12 @@ static int _update_main(int argc, const char* argv[])
 {
     static const char _usage[] =
         "\n"
-        "Usage: %s update pubkey=? appid=? enclave=? symbol=?\n"
+        "Usage: %s update pubkey=? extid=? enclave=? symbol=?\n"
         "\n";
     typedef struct
     {
         const char* pubkey;
-        oe_app_hash_t appid;
+        oe_ext_hash_t extid;
         const char* enclave;
         const char* symbol;
     } opts_t;
@@ -237,15 +237,15 @@ static int _update_main(int argc, const char* argv[])
         if (_get_opt(&argc, argv, "pubkey", &opts.pubkey) != 0)
             _err("missing pubkey option");
 
-        /* Get the appid option. */
+        /* Get the extid option. */
         {
             const char* ascii;
 
-            if (_get_opt(&argc, argv, "appid", &ascii) != 0)
-                _err("missing appid option");
+            if (_get_opt(&argc, argv, "extid", &ascii) != 0)
+                _err("missing extid option");
 
-            if (oe_app_ascii_to_hash(ascii, &opts.appid) != OE_OK)
-                _err("bad appid option: %s", ascii);
+            if (oe_ext_ascii_to_hash(ascii, &opts.extid) != OE_OK)
+                _err("bad extid option: %s", ascii);
         }
 
         /* Handle enclave option. */
@@ -275,7 +275,7 @@ static int _update_main(int argc, const char* argv[])
         _err("cannot find symbol: %s", opts.symbol);
 
     /* Check the size of the symbol. */
-    if (sym.st_size != sizeof(oe_app_policy_t))
+    if (sym.st_size != sizeof(oe_ext_policy_t))
         _err("symbol %s is wrong size", opts.symbol);
 
     /* Find the offset within the ELF file of this symbol. */
@@ -283,7 +283,7 @@ static int _update_main(int argc, const char* argv[])
         _err("cannot locate symbol %s in %s", opts.symbol, opts.enclave);
 
     /* Make sure the entire symbol falls within the file image. */
-    if (file_offset + sizeof(oe_app_policy_t) >= elf.size)
+    if (file_offset + sizeof(oe_ext_policy_t) >= elf.size)
         _err("unexpected");
 
     /* Get the address of the symbol. */
@@ -303,7 +303,7 @@ static int _update_main(int argc, const char* argv[])
 
     /* Update the 'policy' symbol. */
     {
-        oe_app_policy_t policy;
+        oe_ext_policy_t policy;
         memset(&policy, 0, sizeof(policy));
 
         /* policy.modulus */
@@ -314,12 +314,12 @@ static int _update_main(int argc, const char* argv[])
         if (_get_exponent(&pubkey, policy.pubkey.exponent) != 0)
             _err("failed to get exponent");
 
-        /* policy.appid */
-        policy.appid = opts.appid;
+        /* policy.extid */
+        policy.extid = opts.extid;
 
         /* Expecting an exponent of 03000000 */
         {
-            uint8_t buf[OE_APP_EXPONENT_SIZE] = {
+            uint8_t buf[OE_EXT_EXPONENT_SIZE] = {
                 0x03,
                 0x00,
                 0x00,
@@ -418,7 +418,7 @@ static int _dump_policy_main(int argc, const char* argv[])
         _err("cannot find symbol: %s", opts.symbol);
 
     /* Check the size of the symbol. */
-    if (sym.st_size != sizeof(oe_app_policy_t))
+    if (sym.st_size != sizeof(oe_ext_policy_t))
         _err("symbol %s is wrong size", opts.symbol);
 
     /* Find the offset within the ELF file of this symbol. */
@@ -426,7 +426,7 @@ static int _dump_policy_main(int argc, const char* argv[])
         _err("cannot locate symbol %s in %s", opts.symbol, opts.enclave);
 
     /* Make sure the entire symbol falls within the file image. */
-    if (file_offset + sizeof(oe_app_policy_t) >= elf.size)
+    if (file_offset + sizeof(oe_ext_policy_t) >= elf.size)
         _err("unexpected");
 
     /* Get the address of the symbol. */
@@ -434,12 +434,12 @@ static int _dump_policy_main(int argc, const char* argv[])
 
     /* Print the 'policy' symbol. */
     {
-        oe_app_policy_t policy;
+        oe_ext_policy_t policy;
 
         /* Update the policy structure in the ELF file. */
         memcpy(&policy, symbol_address, sizeof(policy));
 
-        oe_app_dump_policy(&policy);
+        oe_ext_dump_policy(&policy);
     }
 
     ret = 0;
@@ -456,13 +456,13 @@ static int _sign_main(int argc, const char* argv[])
 {
     static const char _usage[] =
         "\n"
-        "Usage: %s sign privkey=? appid=? apphash=? sigstructfile=?\n"
+        "Usage: %s sign privkey=? extid=? exthash=? sigstructfile=?\n"
         "\n";
     typedef struct
     {
         const char* privkey;
-        oe_app_hash_t appid;
-        oe_app_hash_t apphash;
+        oe_ext_hash_t extid;
+        oe_ext_hash_t exthash;
         const char* sigstructfile;
     } opts_t;
     opts_t opts;
@@ -472,7 +472,7 @@ static int _sign_main(int argc, const char* argv[])
     bool rsa_private_initialized = false;
     oe_rsa_public_key_t pubkey;
     bool pubkey_initialized = false;
-    oe_app_sigstruct_t sigstruct;
+    oe_ext_sigstruct_t sigstruct;
 
     int ret = 1;
 
@@ -489,26 +489,26 @@ static int _sign_main(int argc, const char* argv[])
         if (_get_opt(&argc, argv, "privkey", &opts.privkey) != 0)
             _err("missing privkey option");
 
-        /* Get the appid option. */
+        /* Get the extid option. */
         {
             const char* ascii;
 
-            if (_get_opt(&argc, argv, "appid", &ascii) != 0)
-                _err("missing appid option");
+            if (_get_opt(&argc, argv, "extid", &ascii) != 0)
+                _err("missing extid option");
 
-            if (oe_app_ascii_to_hash(ascii, &opts.appid) != OE_OK)
-                _err("bad appid option: %s", ascii);
+            if (oe_ext_ascii_to_hash(ascii, &opts.extid) != OE_OK)
+                _err("bad extid option: %s", ascii);
         }
 
-        /* Get the apphash option. */
+        /* Get the exthash option. */
         {
             const char* ascii;
 
-            if (_get_opt(&argc, argv, "apphash", &ascii) != 0)
-                _err("missing apphash option");
+            if (_get_opt(&argc, argv, "exthash", &ascii) != 0)
+                _err("missing exthash option");
 
-            if (oe_app_ascii_to_hash(ascii, &opts.apphash) != OE_OK)
-                _err("bad apphash option: %s", ascii);
+            if (oe_ext_ascii_to_hash(ascii, &opts.exthash) != OE_OK)
+                _err("bad exthash option: %s", ascii);
         }
 
         /* Get the sigstructfile option. */
@@ -536,17 +536,17 @@ static int _sign_main(int argc, const char* argv[])
 
     /* Perform the signing operation. */
     {
-        uint8_t signature[OE_APP_KEY_SIZE];
-        oe_app_hash_t hash;
+        uint8_t signature[OE_EXT_KEY_SIZE];
+        oe_ext_hash_t hash;
 
-        /* Combine the two hashes (appid and apphash) into one */
+        /* Combine the two hashes (extid and exthash) into one */
         {
             oe_sha256_context_t context;
             OE_SHA256 sha256;
 
             oe_sha256_init(&context);
-            oe_sha256_update(&context, opts.appid.buf, sizeof(opts.appid));
-            oe_sha256_update(&context, opts.apphash.buf, sizeof(opts.apphash));
+            oe_sha256_update(&context, opts.extid.buf, sizeof(opts.extid));
+            oe_sha256_update(&context, opts.exthash.buf, sizeof(opts.exthash));
             oe_sha256_final(&context, &sha256);
 
             memcpy(hash.buf, sha256.buf, sizeof(hash));
@@ -554,27 +554,27 @@ static int _sign_main(int argc, const char* argv[])
 
         /* Create the signature from the hash. */
         {
-            size_t signature_size = OE_APP_KEY_SIZE;
+            size_t signature_size = OE_EXT_KEY_SIZE;
 
             if (oe_rsa_private_key_sign(
                     &rsa_private,
                     OE_HASH_TYPE_SHA256,
                     hash.buf,
-                    sizeof(oe_app_hash_t),
+                    sizeof(oe_ext_hash_t),
                     signature,
                     &signature_size) != 0)
             {
                 _err("signing operation failed");
             }
 
-            if (signature_size != OE_APP_KEY_SIZE)
+            if (signature_size != OE_EXT_KEY_SIZE)
                 _err("bad resulting signature size");
         }
 
         /* Initialize the sigstruct structure. */
         {
-            uint8_t modulus[OE_APP_KEY_SIZE];
-            uint8_t exponent[OE_APP_EXPONENT_SIZE];
+            uint8_t modulus[OE_EXT_KEY_SIZE];
+            uint8_t exponent[OE_EXT_EXPONENT_SIZE];
 
             memset(&sigstruct, 0, sizeof(sigstruct));
 
@@ -589,13 +589,13 @@ static int _sign_main(int argc, const char* argv[])
             /* sign.signer */
             _compute_sha256_hash(&sigstruct.signer, modulus, sizeof(modulus));
 
-            /* sign.appid*/
-            assert(sizeof sigstruct.appid == sizeof opts.appid);
-            sigstruct.appid = opts.appid;
+            /* sign.extid*/
+            assert(sizeof sigstruct.extid == sizeof opts.extid);
+            sigstruct.extid = opts.extid;
 
-            /* sign.apphash*/
-            assert(sizeof sigstruct.apphash == sizeof opts.apphash);
-            sigstruct.apphash = opts.apphash;
+            /* sign.exthash*/
+            assert(sizeof sigstruct.exthash == sizeof opts.exthash);
+            sigstruct.exthash = opts.exthash;
 
             /* sign.signature */
             assert(sizeof sigstruct.signature == sizeof signature);
@@ -605,7 +605,7 @@ static int _sign_main(int argc, const char* argv[])
     }
 
     /* Save the sigstruct to a file. */
-    if (oe_app_save_sigstruct(opts.sigstructfile, &sigstruct) != OE_OK)
+    if (oe_ext_save_sigstruct(opts.sigstructfile, &sigstruct) != OE_OK)
     {
         _err("failed to save: %s", opts.sigstructfile);
         goto done;

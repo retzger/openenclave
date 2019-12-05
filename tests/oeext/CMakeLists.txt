@@ -6,33 +6,33 @@ add_subdirectory(enc)
 
 set(PUBKEY "${CMAKE_CURRENT_BINARY_DIR}/public.pem")
 set(PRIVKEY "${CMAKE_CURRENT_BINARY_DIR}/private.pem")
-set(APPID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
-set(APPHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
+set(EXTID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
+set(EXTHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
 set(SIGSTRUCT ${CMAKE_CURRENT_BINARY_DIR}/sigstruct)
 
 # Generate a self-signed private key:
-add_test(tests/oeapp_privkey
+add_test(tests/oeext_privkey
     openssl genrsa -out ${PRIVKEY} -3 3072)
 
 # Generate a public key from the private key:
-add_test(tests/oeapp_pubkey
+add_test(tests/oeext_pubkey
     openssl rsa -in ${PRIVKEY} -out ${PUBKEY} -pubout -outform PEM)
 
 # Update the policy within the enclave:
-add_test(tests/oeapp_update
-    oeapp update
+add_test(tests/oeext_update
+    oeext update
     pubkey=${PUBKEY}
-    appid=${APPID}
-    enclave=${CMAKE_CURRENT_BINARY_DIR}/enc/oeapp_enc
+    extid=${EXTID}
+    enclave=${CMAKE_CURRENT_BINARY_DIR}/enc/oeext_enc
     symbol=policy)
 
 # Sign the hash and create the sigstruct file:
-add_test(tests/oeapp_sign
-    oeapp sign
+add_test(tests/oeext_sign
+    oeext sign
     privkey=${PRIVKEY}
-    appid=${APPID}
-    apphash=${APPHASH}
+    extid=${EXTID}
+    exthash=${EXTHASH}
     sigstructfile=${SIGSTRUCT})
 
-add_enclave_test(tests/oeapp_verify
-    oeapp_host oeapp_enc ${SIGSTRUCT} ${APPHASH})
+add_enclave_test(tests/oeext_verify
+    oeext_host oeext_enc ${SIGSTRUCT} ${EXTHASH})

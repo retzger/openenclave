@@ -1,7 +1,7 @@
 // Copyright (c) Open Enclave SDK contributors.
 // Licensed under the MIT License.
 
-#include <openenclave/bits/app.h>
+#include <openenclave/bits/ext.h>
 #include <stdio.h>
 
 static void _dump_hex(const uint8_t* data, size_t size)
@@ -10,16 +10,16 @@ static void _dump_hex(const uint8_t* data, size_t size)
         printf("%02x", data[i]);
 }
 
-void oe_app_dump_hash(const char* name, const oe_app_hash_t* hash)
+void oe_ext_dump_hash(const char* name, const oe_ext_hash_t* hash)
 {
     printf("# hash\n");
     printf("%s=", name);
-    _dump_hex(hash->buf, sizeof(oe_app_hash_t));
+    _dump_hex(hash->buf, sizeof(oe_ext_hash_t));
     printf("\n");
     printf("\n");
 }
 
-void oe_app_dump_policy(const oe_app_policy_t* policy)
+void oe_ext_dump_policy(const oe_ext_policy_t* policy)
 {
     printf("# policy\n");
 
@@ -35,14 +35,14 @@ void oe_app_dump_policy(const oe_app_policy_t* policy)
     _dump_hex(policy->signer.buf, sizeof(policy->signer.buf));
     printf("\n");
 
-    printf("appid=");
-    _dump_hex(policy->appid.buf, sizeof(policy->appid));
+    printf("extid=");
+    _dump_hex(policy->extid.buf, sizeof(policy->extid));
     printf("\n");
 
     printf("\n");
 }
 
-void oe_app_dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
+void oe_ext_dump_sigstruct(const oe_ext_sigstruct_t* sigstruct)
 {
     printf("# sigstruct\n");
 
@@ -50,12 +50,12 @@ void oe_app_dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
     _dump_hex(sigstruct->signer.buf, sizeof(sigstruct->signer));
     printf("\n");
 
-    printf("appid=");
-    _dump_hex(sigstruct->appid.buf, sizeof(sigstruct->appid));
+    printf("extid=");
+    _dump_hex(sigstruct->extid.buf, sizeof(sigstruct->extid));
     printf("\n");
 
-    printf("apphash=");
-    _dump_hex(sigstruct->apphash.buf, sizeof(sigstruct->apphash));
+    printf("exthash=");
+    _dump_hex(sigstruct->exthash.buf, sizeof(sigstruct->exthash));
     printf("\n");
 
     printf("signature=");

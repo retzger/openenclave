@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 #include <ctype.h>
-#include <openenclave/bits/app.h>
+#include <openenclave/bits/ext.h>
 #include <openenclave/internal/files.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/rsa.h>
@@ -43,15 +43,15 @@ done:
     return result;
 }
 
-oe_result_t oe_app_ascii_to_hash(const char* ascii, oe_app_hash_t* hash)
+oe_result_t oe_ext_ascii_to_hash(const char* ascii, oe_ext_hash_t* hash)
 {
-    return _ascii_to_binary(ascii, hash->buf, sizeof(oe_app_hash_t));
+    return _ascii_to_binary(ascii, hash->buf, sizeof(oe_ext_hash_t));
 }
 
 #if 0
-oe_result_t oe_app_load_sigstruct(
+oe_result_t oe_ext_load_sigstruct(
     const char* path,
-    oe_app_sigstruct_t* sigstruct)
+    oe_ext_sigstruct_t* sigstruct)
 {
     oe_result_t result = OE_UNEXPECTED;
     void* data = NULL;
@@ -62,10 +62,10 @@ oe_result_t oe_app_load_sigstruct(
 
     OE_CHECK(__oe_load_file(path, 0, &data, &size));
 
-    if (size != sizeof(oe_app_sigstruct_t))
+    if (size != sizeof(oe_ext_sigstruct_t))
         OE_RAISE(OE_FAILURE);
 
-    memcpy(sigstruct, data, sizeof(oe_app_sigstruct_t));
+    memcpy(sigstruct, data, sizeof(oe_ext_sigstruct_t));
 
     result = OE_OK;
 
@@ -78,16 +78,16 @@ done:
 }
 #endif
 
-oe_result_t oe_app_load_sigstruct(
+oe_result_t oe_ext_load_sigstruct(
     const char* path,
-    oe_app_sigstruct_t* sigstruct)
+    oe_ext_sigstruct_t* sigstruct)
 {
     oe_result_t result = OE_UNEXPECTED;
     FILE* is = NULL;
     char line[4096];
 
     if (sigstruct)
-        memset(sigstruct, 0, sizeof(oe_app_sigstruct_t));
+        memset(sigstruct, 0, sizeof(oe_ext_sigstruct_t));
 
     if (!path || !sigstruct)
         OE_RAISE(OE_INVALID_PARAMETER);
@@ -158,15 +158,15 @@ oe_result_t oe_app_load_sigstruct(
             OE_CHECK(_ascii_to_binary(
                 p, sigstruct->signer.buf, sizeof(sigstruct->signer)));
         }
-        else if (strcmp(name, "appid") == 0)
+        else if (strcmp(name, "extid") == 0)
         {
             OE_CHECK(_ascii_to_binary(
-                p, sigstruct->appid.buf, sizeof(sigstruct->appid)));
+                p, sigstruct->extid.buf, sizeof(sigstruct->extid)));
         }
-        else if (strcmp(name, "apphash") == 0)
+        else if (strcmp(name, "exthash") == 0)
         {
             OE_CHECK(_ascii_to_binary(
-                p, sigstruct->apphash.buf, sizeof(sigstruct->apphash)));
+                p, sigstruct->exthash.buf, sizeof(sigstruct->exthash)));
         }
         else if (strcmp(name, "signature") == 0)
         {
@@ -215,13 +215,13 @@ done:
     return result;
 }
 
-oe_result_t oe_app_save_sigstruct(
+oe_result_t oe_ext_save_sigstruct(
     const char* path,
-    const oe_app_sigstruct_t* sigstruct)
+    const oe_ext_sigstruct_t* sigstruct)
 {
     oe_result_t result = OE_UNEXPECTED;
     FILE* os = NULL;
-    const oe_app_sigstruct_t* p = sigstruct;
+    const oe_ext_sigstruct_t* p = sigstruct;
 
     if (!path || !sigstruct)
         OE_RAISE(OE_INVALID_PARAMETER);
@@ -232,8 +232,8 @@ oe_result_t oe_app_save_sigstruct(
     fprintf(os, "# sigstruct\n");
 
     OE_CHECK(_put(os, "signer", p->signer.buf, sizeof(p->signer)));
-    OE_CHECK(_put(os, "appid", p->appid.buf, sizeof(p->appid)));
-    OE_CHECK(_put(os, "apphash", p->apphash.buf, sizeof(p->apphash)));
+    OE_CHECK(_put(os, "extid", p->extid.buf, sizeof(p->extid)));
+    OE_CHECK(_put(os, "exthash", p->exthash.buf, sizeof(p->exthash)));
     OE_CHECK(_put(os, "signature", p->signature.buf, sizeof(p->signature)));
 
     result = OE_OK;

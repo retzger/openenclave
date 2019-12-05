@@ -1,35 +1,35 @@
 // Copyright (c) Open Enclave SDK contributors.
 // Licensed under the MIT License.
 
-#include <openenclave/bits/app.h>
+#include <openenclave/bits/ext.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/rsa.h>
 #include <stdio.h>
 #include <string.h>
 
-oe_result_t oe_app_verify_signature(
-    oe_app_pubkey_t* pubkey,
-    const oe_app_hash_t* appid,
-    const oe_app_hash_t* apphash,
-    const oe_app_signature_t* signature)
+oe_result_t oe_ext_verify_signature(
+    oe_ext_pubkey_t* pubkey,
+    const oe_ext_hash_t* extid,
+    const oe_ext_hash_t* exthash,
+    const oe_ext_signature_t* signature)
 {
     oe_result_t result = OE_UNEXPECTED;
     oe_rsa_public_key_t rpk;
     bool rpk_initialized = false;
-    oe_app_hash_t hash;
+    oe_ext_hash_t hash;
 
     /* Check the parameters. */
-    if (!signature || !pubkey || !appid || !apphash)
+    if (!signature || !pubkey || !extid || !exthash)
         OE_RAISE(OE_INVALID_PARAMETER);
 
-    /* Find the composite hash of the appid and apphash. */
+    /* Find the composite hash of the extid and exthash. */
     {
         oe_sha256_context_t context;
         OE_SHA256 sha256;
 
         oe_sha256_init(&context);
-        oe_sha256_update(&context, appid->buf, sizeof(*appid));
-        oe_sha256_update(&context, apphash->buf, sizeof(*apphash));
+        oe_sha256_update(&context, extid->buf, sizeof(*extid));
+        oe_sha256_update(&context, exthash->buf, sizeof(*exthash));
         oe_sha256_final(&context, &sha256);
 
         memcpy(hash.buf, sha256.buf, sizeof(hash));
