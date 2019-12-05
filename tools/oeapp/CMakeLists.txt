@@ -3,7 +3,7 @@
 
 add_executable(oeapp main.c)
 
-target_link_libraries(oeapp oehost)
+target_link_libraries(oeapp oeapphost oehost)
 
 # assemble into proper collector dir
 set_property(TARGET oeapp PROPERTY RUNTIME_OUTPUT_DIRECTORY ${OE_BINDIR})

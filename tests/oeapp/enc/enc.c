@@ -65,28 +65,28 @@ void dump_policy_ecall(void)
     dump_policy(&policy);
 }
 
-void dump_signature(const oe_app_signature_t* signature)
+void dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
 {
-    printf("signature =\n");
+    printf("sigstruct =\n");
     printf("{\n");
 
     printf("    signer=");
-    hex_dump(signature->signer.buf, sizeof(signature->signer));
+    hex_dump(sigstruct->signer.buf, sizeof(sigstruct->signer));
     printf("\n");
 
     printf("    hash=");
-    hex_dump(signature->apphash.buf, sizeof(signature->apphash));
+    hex_dump(sigstruct->apphash.buf, sizeof(sigstruct->apphash));
     printf("\n");
 
-    printf("    signature=");
-    hex_dump(signature->signature, sizeof(signature->signature));
+    printf("    sigstruct=");
+    hex_dump(sigstruct->signature.buf, sizeof(sigstruct->signature));
     printf("\n");
 
     printf("}\n");
 }
 
 void verify_ecall(
-    const struct _oe_app_signature* signature,
+    const struct _oe_app_sigstruct* sigstruct,
     const struct _oe_app_hash* apphash)
 {
     oe_result_t r;
@@ -94,9 +94,10 @@ void verify_ecall(
     hex_dump(apphash->buf, sizeof(oe_app_hash_t));
 
     /* Dump the structure. */
-    dump_signature(signature);
+    dump_sigstruct(sigstruct);
 
-    r = oe_app_verify_signature(signature, &policy, &policy.appid, apphash);
+    r = oe_app_verify_signature(
+        &policy.pubkey, &policy.appid, apphash, &sigstruct->signature);
     OE_TEST(r == OE_OK);
 
     printf("=== VERIFY OKAY\n");

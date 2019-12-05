@@ -10,7 +10,7 @@ enclave
         public void dump_policy_ecall();
 
         public void verify_ecall(
-            [in, count=1] const struct _oe_app_signature* sig,
+            [in, count=1] const struct _oe_app_sigstruct* sigstruct,
             [in, count=1] const struct _oe_app_hash* apphash);
     };
 };

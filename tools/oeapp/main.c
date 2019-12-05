@@ -57,29 +57,6 @@ done:
     return ret;
 }
 
-int _ascii_to_hash(const char* ascii_hash, oe_app_hash_t* hash)
-{
-    const char* p = ascii_hash;
-
-    memset(hash, 0, OE_APP_HASH_SIZE);
-
-    if (strlen(ascii_hash) != 2 * OE_APP_HASH_SIZE)
-        return -1;
-
-    for (size_t i = 0; i < OE_APP_HASH_SIZE; i++)
-    {
-        unsigned int byte;
-
-        if (sscanf(p, "%02x", &byte) != 1)
-            return -1;
-
-        hash->buf[i] = (uint8_t)byte;
-        p += 2;
-    }
-
-    return 0;
-}
-
 static uint64_t _find_file_offset(elf64_t* elf, uint64_t vaddr)
 {
     elf64_ehdr_t* eh = (elf64_ehdr_t*)elf->data;
@@ -296,21 +273,21 @@ static int _get_opt(
     return -1;
 }
 
-static void _dump_signature(const oe_app_signature_t* signature)
+static void _dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
 {
-    printf("signature =\n");
+    printf("sigstruct =\n");
     printf("{\n");
 
     printf("    signer=");
-    _hex_dump(signature->signer.buf, sizeof(signature->signer));
+    _hex_dump(sigstruct->signer.buf, sizeof(sigstruct->signer));
     printf("\n");
 
     printf("    hash=");
-    _hex_dump(signature->apphash.buf, sizeof(signature->apphash));
+    _hex_dump(sigstruct->apphash.buf, sizeof(sigstruct->apphash));
     printf("\n");
 
-    printf("    signature=");
-    _hex_dump(signature->signature, sizeof(signature->signature));
+    printf("    sigstruct=");
+    _hex_dump(sigstruct->signature.buf, sizeof(sigstruct->signature));
     printf("\n");
 
     printf("}\n");
@@ -386,7 +363,7 @@ static int _update_main(int argc, const char* argv[])
             if (_get_opt(&argc, argv, "appid", &ascii) != 0)
                 _err("missing appid option");
 
-            if (_ascii_to_hash(ascii, &opts.appid) != 0)
+            if (oe_app_ascii_to_hash(ascii, &opts.appid) != OE_OK)
                 _err("bad appid option: %s", ascii);
         }
 
@@ -591,14 +568,14 @@ static int _sign_main(int argc, const char* argv[])
 {
     static const char _usage[] =
         "\n"
-        "Usage: %s sign privkey=? appid=? apphash=? sigfile=?\n"
+        "Usage: %s sign privkey=? appid=? apphash=? sigstructfile=?\n"
         "\n";
     typedef struct
     {
         const char* privkey;
         oe_app_hash_t appid;
         oe_app_hash_t apphash;
-        const char* sigfile;
+        const char* sigstructfile;
     } opts_t;
     opts_t opts;
     void* pem_data = NULL;
@@ -607,7 +584,7 @@ static int _sign_main(int argc, const char* argv[])
     bool rsa_private_initialized = false;
     oe_rsa_public_key_t pubkey;
     bool pubkey_initialized = false;
-    oe_app_signature_t sig;
+    oe_app_sigstruct_t sigstruct;
 
     int ret = 1;
 
@@ -631,7 +608,7 @@ static int _sign_main(int argc, const char* argv[])
             if (_get_opt(&argc, argv, "appid", &ascii) != 0)
                 _err("missing appid option");
 
-            if (_ascii_to_hash(ascii, &opts.appid) != 0)
+            if (oe_app_ascii_to_hash(ascii, &opts.appid) != OE_OK)
                 _err("bad appid option: %s", ascii);
         }
 
@@ -642,13 +619,13 @@ static int _sign_main(int argc, const char* argv[])
             if (_get_opt(&argc, argv, "apphash", &ascii) != 0)
                 _err("missing apphash option");
 
-            if (_ascii_to_hash(ascii, &opts.apphash) != 0)
+            if (oe_app_ascii_to_hash(ascii, &opts.apphash) != OE_OK)
                 _err("bad apphash option: %s", ascii);
         }
 
-        /* Get the sigfile option. */
-        if (_get_opt(&argc, argv, "sigfile", &opts.sigfile) != 0)
-            _err("missing sigfile option");
+        /* Get the sigstructfile option. */
+        if (_get_opt(&argc, argv, "sigstructfile", &opts.sigstructfile) != 0)
+            _err("missing sigstructfile option");
     }
 
     /* Load the private key. */
@@ -706,12 +683,12 @@ static int _sign_main(int argc, const char* argv[])
                 _err("bad resulting signature size");
         }
 
-        /* Initialize the sig structure. */
+        /* Initialize the sigstruct structure. */
         {
             uint8_t modulus[OE_APP_KEY_SIZE];
             uint8_t exponent[OE_APP_EXPONENT_SIZE];
 
-            memset(&sig, 0, sizeof(sig));
+            memset(&sigstruct, 0, sizeof(sigstruct));
 
             /* Get the modulus */
             if (_get_modulus(&pubkey, modulus) != 0)
@@ -722,22 +699,23 @@ static int _sign_main(int argc, const char* argv[])
                 _err("failed to get exponent");
 
             /* sign.signer */
-            _compute_signer(modulus, &sig.signer);
+            _compute_signer(modulus, &sigstruct.signer);
 
             /* sign.hash */
-            assert(sizeof sig.apphash == sizeof opts.apphash);
-            sig.apphash = opts.apphash;
+            assert(sizeof sigstruct.apphash == sizeof opts.apphash);
+            sigstruct.apphash = opts.apphash;
 
             /* sign.signature */
-            assert(sizeof sig.signature == sizeof signature);
-            memcpy(sig.signature, signature, sizeof sig.signature);
+            assert(sizeof sigstruct.signature == sizeof signature);
+            memcpy(
+                sigstruct.signature.buf, signature, sizeof sigstruct.signature);
         }
     }
 
-    /* Write the signature file. */
-    if (_write_file(opts.sigfile, &sig, sizeof sig) != 0)
+    /* Write the sigstruct file. */
+    if (_write_file(opts.sigstructfile, &sigstruct, sizeof sigstruct) != 0)
     {
-        _err("failed to write: %s", opts.sigfile);
+        _err("failed to write: %s", opts.sigstructfile);
         goto done;
     }
 
@@ -757,14 +735,14 @@ done:
     return ret;
 }
 
-static int _dump_signature_main(int argc, const char* argv[])
+static int _dump_sigstruct_main(int argc, const char* argv[])
 {
     static const char _usage[] = "\n"
-                                 "Usage: %s dump_signature sigfile=?\n"
+                                 "Usage: %s dump_sigstruct sigstructfile=?\n"
                                  "\n";
     typedef struct
     {
-        const char* sigfile;
+        const char* sigstructfile;
     } opts_t;
     opts_t opts;
     void* data = NULL;
@@ -781,24 +759,24 @@ static int _dump_signature_main(int argc, const char* argv[])
 
     /* Collect the options. */
     {
-        /* Get the sigfile option. */
-        if (_get_opt(&argc, argv, "sigfile", &opts.sigfile) != 0)
-            _err("missing sigfile option");
+        /* Get the sigstructfile option. */
+        if (_get_opt(&argc, argv, "sigstructfile", &opts.sigstructfile) != 0)
+            _err("missing sigstructfile option");
     }
 
     /* Load the signature file into memory. */
-    if (__oe_load_file(opts.sigfile, 0, &data, &size) != 0)
+    if (__oe_load_file(opts.sigstructfile, 0, &data, &size) != 0)
     {
-        _err("failed to write: %s", opts.sigfile);
+        _err("failed to write: %s", opts.sigstructfile);
         goto done;
     }
 
     /* Check the size of the file. */
-    if (size != sizeof(oe_app_signature_t))
-        _err("file is wrong size: %s", opts.sigfile);
+    if (size != sizeof(oe_app_sigstruct_t))
+        _err("file is wrong size: %s", opts.sigstructfile);
 
     /* Dump the fields in the file. */
-    _dump_signature(((oe_app_signature_t*)data));
+    _dump_sigstruct(((oe_app_sigstruct_t*)data));
 
     ret = 0;
 
@@ -818,9 +796,9 @@ int main(int argc, const char* argv[])
         "\n"
         "Commands:\n"
         "    update - update an enclave's policy structure.\n"
-        "    sign - create a signature file for a given hash.\n"
+        "    sign - create a sigstruct file for a given hash.\n"
         "    dump_policy - dump an enclave update sructure.\n"
-        "    dump_signature - dump a signature file.\n"
+        "    dump_sigstruct - dump a sigstruct file.\n"
         "\n";
     int ret = 1;
 
@@ -850,9 +828,9 @@ int main(int argc, const char* argv[])
         ret = _dump_policy_main(argc, argv);
         goto done;
     }
-    else if (strcmp(argv[1], "dump_signature") == 0)
+    else if (strcmp(argv[1], "dump_sigstruct") == 0)
     {
-        ret = _dump_signature_main(argc, argv);
+        ret = _dump_sigstruct_main(argc, argv);
         goto done;
     }
     else

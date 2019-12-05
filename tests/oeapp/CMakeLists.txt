@@ -36,6 +36,6 @@ add_test(tests/oeapp_sign
     privkey=${PRIVKEY}
     appid=${APPID}
     apphash=${APPHASH}
-    sigfile=${SIGFILE})
+    sigstructfile=${SIGFILE})
 
-add_enclave_test(tests/oeapp oeapp_host oeapp_enc ${SIGFILE} ${APPHASH})
+add_enclave_test(tests/oeapp_verify oeapp_host oeapp_enc ${SIGFILE} ${APPHASH})
