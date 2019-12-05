@@ -22,8 +22,9 @@ add_test(tests/oeapp_pubkey
 
 set(APPID cc79fdaf950d4317bd54379bc711f0ddfc5f45593043410d875ba7edba3a5ac2)
 set(APPHASH 042aea10a0f14f2d391373599be69d53a75dde9951fc3d3cd10b6100aa7a9f24)
-set(SIGFILE ${CMAKE_CURRENT_BINARY_DIR}/sign)
+set(SIGSTRUCT ${CMAKE_CURRENT_BINARY_DIR}/sigstruct)
 
+# Update the policy within the enclave:
 add_test(tests/oeapp_update
     oeapp update
     pubkey=${PUBKEY}
@@ -31,11 +32,13 @@ add_test(tests/oeapp_update
     enclave=${CMAKE_CURRENT_BINARY_DIR}/enc/oeapp_enc
     symbol=policy)
 
+# Sign the hash and create the sigstruct file:
 add_test(tests/oeapp_sign
     oeapp sign
     privkey=${PRIVKEY}
     appid=${APPID}
     apphash=${APPHASH}
-    sigstructfile=${SIGFILE})
+    sigstructfile=${SIGSTRUCT})
 
-add_enclave_test(tests/oeapp_verify oeapp_host oeapp_enc ${SIGFILE} ${APPHASH})
+add_enclave_test(tests/oeapp_verify
+    oeapp_host oeapp_enc ${SIGSTRUCT} ${APPHASH})

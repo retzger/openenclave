@@ -99,7 +99,7 @@ static void _compute_sha256_hash(
     memcpy(hash, sha256.buf, OE_SHA256_SIZE);
 }
 
-int _write_file(const char* path, const void* data, size_t size)
+static int _write_file(const char* path, const void* data, size_t size)
 {
     FILE* os;
 
@@ -604,10 +604,10 @@ static int _sign_main(int argc, const char* argv[])
         }
     }
 
-    /* Write the sigstruct file. */
-    if (_write_file(opts.sigstructfile, &sigstruct, sizeof sigstruct) != 0)
+    /* Save the sigstruct to a file. */
+    if (oe_app_save_sigstruct(opts.sigstructfile, &sigstruct) != OE_OK)
     {
-        _err("failed to write: %s", opts.sigstructfile);
+        _err("failed to save: %s", opts.sigstructfile);
         goto done;
     }
 

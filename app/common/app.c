@@ -19,50 +19,42 @@ void oe_app_dump_hash(const char* name, const oe_app_hash_t* hash)
 
 void oe_app_dump_policy(const oe_app_policy_t* policy)
 {
-    printf("policy\n");
-    printf("{\n");
+    printf("# policy\n");
 
-    printf("    pubkey\n");
-    printf("    {\n");
-    printf("       modulus=");
+    printf("modulus=");
     _dump_hex(policy->pubkey.modulus, sizeof(policy->pubkey.modulus));
     printf("\n");
-    printf("       exponent=");
+
+    printf("exponent=");
     _dump_hex(policy->pubkey.exponent, sizeof(policy->pubkey.exponent));
     printf("\n");
-    printf("    }\n");
 
-    printf("    signer=");
+    printf("signer=");
     _dump_hex(policy->signer.buf, sizeof(policy->signer.buf));
     printf("\n");
 
-    printf("    appid=");
+    printf("appid=");
     _dump_hex(policy->appid.buf, sizeof(policy->appid));
     printf("\n");
-
-    printf("}\n");
 }
 
 void oe_app_dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
 {
-    printf("sigstruct =\n");
-    printf("{\n");
+    printf("# sigstruct\n");
 
-    printf("    signer=");
+    printf("signer=");
     _dump_hex(sigstruct->signer.buf, sizeof(sigstruct->signer));
     printf("\n");
 
-    printf("    appid=");
+    printf("appid=");
     _dump_hex(sigstruct->appid.buf, sizeof(sigstruct->appid));
     printf("\n");
 
-    printf("    apphash=");
+    printf("apphash=");
     _dump_hex(sigstruct->apphash.buf, sizeof(sigstruct->apphash));
     printf("\n");
 
-    printf("    signature=");
+    printf("signature=");
     _dump_hex(sigstruct->signature.buf, sizeof(sigstruct->signature));
     printf("\n");
-
-    printf("}\n");
 }
