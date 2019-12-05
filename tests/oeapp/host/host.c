@@ -12,6 +12,7 @@
 
 int main(int argc, const char* argv[])
 {
+    const char* arg0 = argv[0];
     oe_result_t result;
     oe_enclave_t* enclave;
     const uint32_t flags = oe_get_create_flags();
@@ -21,7 +22,7 @@ int main(int argc, const char* argv[])
 
     if (argc != 4)
     {
-        fprintf(stderr, "Usage: %s ENCLAVE_PATH SIGFILE HASH\n", argv[0]);
+        fprintf(stderr, "Usage: %s ENCLAVE_PATH SIGSTRUCTFILE APPHASH\n", arg0);
         return 1;
     }
 

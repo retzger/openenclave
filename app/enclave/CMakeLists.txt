@@ -1,7 +1,7 @@
 # Copyright (c) Open Enclave SDK contributors.
 # Licensed under the MIT License.
 
-add_library(oeappenclave STATIC app.c)
+add_library(oeappenclave STATIC app.c ../common/app.c)
 
 maybe_build_using_clangw(oeappenclave)
 

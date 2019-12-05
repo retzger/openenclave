@@ -85,17 +85,18 @@ static uint64_t _find_file_offset(elf64_t* elf, uint64_t vaddr)
     return (uint64_t)-1;
 }
 
-static void _compute_signer(
-    const uint8_t modulus[OE_APP_KEY_SIZE],
-    oe_app_hash_t* signer)
+static void _compute_sha256_hash(
+    oe_app_hash_t* hash,
+    const void* data,
+    size_t size)
 {
     oe_sha256_context_t context;
     OE_SHA256 sha256;
 
     oe_sha256_init(&context);
-    oe_sha256_update(&context, modulus, OE_APP_KEY_SIZE);
+    oe_sha256_update(&context, data, size);
     oe_sha256_final(&context, &sha256);
-    memcpy(signer, sha256.buf, OE_SHA256_SIZE);
+    memcpy(hash, sha256.buf, OE_SHA256_SIZE);
 }
 
 int _write_file(const char* path, const void* data, size_t size)
@@ -111,76 +112,6 @@ int _write_file(const char* path, const void* data, size_t size)
     fclose(os);
 
     return 0;
-}
-
-static int _load_pem_file(const char* path, void** data, size_t* size)
-{
-    int rc = -1;
-    FILE* is = NULL;
-
-    if (data)
-        *data = NULL;
-
-    if (size)
-        *size = 0;
-
-    /* Check parameters */
-    if (!path || !data || !size)
-        goto done;
-
-    /* Get size of this file */
-    {
-        struct stat st;
-
-        if (stat(path, &st) != 0)
-            goto done;
-
-        *size = (size_t)st.st_size;
-    }
-
-    /* Allocate memory. We add 1 to null terimate the file since the crypto
-     * libraries require null terminated PEM data. */
-    if (*size == SIZE_MAX)
-        goto done;
-
-    if (!(*data = (uint8_t*)malloc(*size + 1)))
-        goto done;
-
-    /* Open the file */
-    if (!(is = fopen(path, "rb")))
-        goto done;
-
-    /* Read file into memory */
-    if (fread(*data, 1, *size, is) != *size)
-        goto done;
-
-    /* Zero terminate the PEM data. */
-    {
-        uint8_t* data_tmp = (uint8_t*)*data;
-        data_tmp[*size] = 0;
-        *size += 1;
-    }
-
-    rc = 0;
-
-done:
-
-    if (rc != 0)
-    {
-        if (data && *data)
-        {
-            free(*data);
-            *data = NULL;
-        }
-
-        if (size)
-            *size = 0;
-    }
-
-    if (is)
-        fclose(is);
-
-    return rc;
 }
 
 static void _mem_reverse(void* dest_, const void* src_, size_t n)
@@ -243,12 +174,6 @@ done:
     return result;
 }
 
-static void _hex_dump(const uint8_t* data, size_t size)
-{
-    for (size_t i = 0; i < size; i++)
-        printf("%02x", data[i]);
-}
-
 static int _get_opt(
     int* argc,
     const char* argv[],
@@ -271,50 +196,6 @@ static int _get_opt(
 
     /* Not found */
     return -1;
-}
-
-static void _dump_sigstruct(const oe_app_sigstruct_t* sigstruct)
-{
-    printf("sigstruct =\n");
-    printf("{\n");
-
-    printf("    signer=");
-    _hex_dump(sigstruct->signer.buf, sizeof(sigstruct->signer));
-    printf("\n");
-
-    printf("    hash=");
-    _hex_dump(sigstruct->apphash.buf, sizeof(sigstruct->apphash));
-    printf("\n");
-
-    printf("    sigstruct=");
-    _hex_dump(sigstruct->signature.buf, sizeof(sigstruct->signature));
-    printf("\n");
-
-    printf("}\n");
-}
-
-static void _dump_policy(oe_app_policy_t* policy)
-{
-    printf("policy =\n");
-    printf("{\n");
-
-    printf("    modulus=");
-    _hex_dump(policy->pubkey.modulus, sizeof(policy->pubkey.modulus));
-    printf("\n");
-
-    printf("    exponent=");
-    _hex_dump(policy->pubkey.exponent, sizeof(policy->pubkey.exponent));
-    printf("\n");
-
-    printf("    signer=");
-    _hex_dump(policy->signer.buf, sizeof(policy->signer.buf));
-    printf("\n");
-
-    printf("    appid=");
-    _hex_dump(policy->appid.buf, sizeof(policy->appid));
-    printf("\n");
-
-    printf("}\n");
 }
 
 static int _update_main(int argc, const char* argv[])
@@ -409,8 +290,12 @@ static int _update_main(int argc, const char* argv[])
     symbol_address = (uint8_t*)elf.data + file_offset;
 
     /* Load the public key. */
-    if (_load_pem_file(opts.pubkey, &pem_data, &pem_size) != 0)
-        _err("failed to load keyfile: %s", opts.pubkey);
+    {
+        if (__oe_load_file(opts.pubkey, 1, &pem_data, &pem_size) != 0)
+            _err("failed to load keyfile: %s", opts.pubkey);
+
+        pem_size++;
+    }
 
     /* Initialize the RSA private key. */
     if (oe_rsa_public_key_read_pem(&pubkey, pem_data, pem_size) != OE_OK)
@@ -446,7 +331,10 @@ static int _update_main(int argc, const char* argv[])
         }
 
         /* Compute the hash of the public key. */
-        _compute_signer(policy.pubkey.modulus, &policy.signer);
+        _compute_sha256_hash(
+            &policy.signer,
+            policy.pubkey.modulus,
+            sizeof(policy.pubkey.modulus));
 
         /* Update the update structure in the ELF file. */
         memcpy(symbol_address, &policy, sizeof(policy));
@@ -551,7 +439,7 @@ static int _dump_policy_main(int argc, const char* argv[])
         /* Update the policy structure in the ELF file. */
         memcpy(&policy, symbol_address, sizeof(policy));
 
-        _dump_policy(&policy);
+        oe_app_dump_policy(&policy);
     }
 
     ret = 0;
@@ -629,8 +517,12 @@ static int _sign_main(int argc, const char* argv[])
     }
 
     /* Load the private key. */
-    if (_load_pem_file(opts.privkey, &pem_data, &pem_size) != 0)
-        _err("failed to load privkey: %s", opts.privkey);
+    {
+        if (__oe_load_file(opts.privkey, 1, &pem_data, &pem_size) != 0)
+            _err("failed to load privkey: %s", opts.privkey);
+
+        pem_size++;
+    }
 
     /* Initialize the RSA private key. */
     if (oe_rsa_private_key_read_pem(&rsa_private, pem_data, pem_size) != OE_OK)
@@ -659,10 +551,6 @@ static int _sign_main(int argc, const char* argv[])
 
             memcpy(hash.buf, sha256.buf, sizeof(hash));
         }
-
-        printf("HHH\n");
-        _hex_dump(hash.buf, sizeof(hash.buf));
-        printf("\n");
 
         /* Create the signature from the hash. */
         {
@@ -699,9 +587,13 @@ static int _sign_main(int argc, const char* argv[])
                 _err("failed to get exponent");
 
             /* sign.signer */
-            _compute_signer(modulus, &sigstruct.signer);
+            _compute_sha256_hash(&sigstruct.signer, modulus, sizeof(modulus));
 
-            /* sign.hash */
+            /* sign.appid*/
+            assert(sizeof sigstruct.appid == sizeof opts.appid);
+            sigstruct.appid = opts.appid;
+
+            /* sign.apphash*/
             assert(sizeof sigstruct.apphash == sizeof opts.apphash);
             sigstruct.apphash = opts.apphash;
 
@@ -765,10 +657,14 @@ static int _dump_sigstruct_main(int argc, const char* argv[])
     }
 
     /* Load the signature file into memory. */
-    if (__oe_load_file(opts.sigstructfile, 0, &data, &size) != 0)
     {
-        _err("failed to write: %s", opts.sigstructfile);
-        goto done;
+        if (__oe_load_file(opts.sigstructfile, 1, &data, &size) != 0)
+        {
+            _err("failed to write: %s", opts.sigstructfile);
+            goto done;
+        }
+
+        size++;
     }
 
     /* Check the size of the file. */
@@ -776,7 +672,7 @@ static int _dump_sigstruct_main(int argc, const char* argv[])
         _err("file is wrong size: %s", opts.sigstructfile);
 
     /* Dump the fields in the file. */
-    _dump_sigstruct(((oe_app_sigstruct_t*)data));
+    oe_app_dump_sigstruct(((oe_app_sigstruct_t*)data));
 
     ret = 0;
 
